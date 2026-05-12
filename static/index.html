@@ -353,11 +353,6 @@
         }
         return;
       }
-      // Show canvas dimensions in Latency field for debugging
-      document.getElementById('s-lat').textContent = canvas.width + 'x' + canvas.height;
-      // Force-draw a red dot to confirm canvas is alive
-      ctx.fillStyle = '#FF0000';
-      ctx.fillRect(20, 20, 30, 30);
       evtCount++;
       drawPreview(e.data);
     };
@@ -368,41 +363,30 @@
     const v = new DataView(buf);
     if (v.byteLength < 21) return;
     const type     = v.getUint8(0);
-    const nx       = v.getFloat32(1,  true);
-    const ny       = v.getFloat32(5,  true);
-    const pressure = v.getFloat32(9,  true);
+    const nx       = v.getFloat32(1, true);
+    const ny       = v.getFloat32(5, true);
+    const pressure = Math.max(0.5, v.getFloat32(9, true));
 
-    const cw = canvas.width, ch = canvas.height;
-    const mode = document.getElementById('map-mode').value;
-    let px, py;
+    const px = nx * canvas.width;
+    const py = ny * canvas.height;
 
-    if (mode === 'stretch') {
-      px = nx * cw; py = ny * ch;
-    } else {
-      const aspect = monW / monH, ca = cw / ch;
-      let dw, dh, ox = 0, oy = 0;
-      if (ca > aspect) { dh = ch; dw = ch * aspect; ox = (cw - dw) / 2; }
-      else             { dw = cw; dh = cw / aspect; oy = (ch - dh) / 2; }
-      px = ox + nx * dw;
-      py = oy + ny * dh;
-    }
-
-    if (type === 1) {                                       // down
+    if (type === 1) {
       lastPt = { x: px, y: py };
       ctx.beginPath();
-      ctx.arc(px, py, Math.max(1, pressure * 4), 0, Math.PI * 2);
+      ctx.arc(px, py, 6, 0, Math.PI * 2);
       ctx.fillStyle = '#00E5CC';
       ctx.fill();
-    } else if (type === 2 && lastPt) {                      // move
+    } else if (type === 2) {
+      if (!lastPt) lastPt = { x: px, y: py };
       ctx.beginPath();
       ctx.moveTo(lastPt.x, lastPt.y);
       ctx.lineTo(px, py);
       ctx.strokeStyle = '#00E5CC';
-      ctx.lineWidth   = Math.max(1, pressure * 8);
-      ctx.lineCap = ctx.lineJoin = 'round';
+      ctx.lineWidth   = Math.max(4, pressure * 12);
+      ctx.lineCap     = ctx.lineJoin = 'round';
       ctx.stroke();
       lastPt = { x: px, y: py };
-    } else if (type === 3) {                                // up
+    } else if (type === 3) {
       lastPt = null;
     }
   }
