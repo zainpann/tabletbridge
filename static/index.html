@@ -353,6 +353,11 @@
         }
         return;
       }
+      // Show canvas dimensions in Latency field for debugging
+      document.getElementById('s-lat').textContent = canvas.width + 'x' + canvas.height;
+      // Force-draw a red dot to confirm canvas is alive
+      ctx.fillStyle = '#FF0000';
+      ctx.fillRect(20, 20, 30, 30);
       evtCount++;
       drawPreview(e.data);
     };

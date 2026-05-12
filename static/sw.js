@@ -1,4 +1,4 @@
-const CACHE = 'tabletbridge-v1';
+const CACHE = 'tabletbridge-v3';
 const PRECACHE = ['/', '/phone', '/manifest.json'];
 
 self.addEventListener('install', (e) => {
