@@ -1,0 +1,431 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>TabletBridge — Desktop</title>
+  <link rel="manifest" href="/manifest.json" />
+  <style>
+    :root {
+      --bg:       #0A0A16;
+      --surface:  #141428;
+      --surface2: #1E1E38;
+      --primary:  #00E5CC;
+      --secondary:#FFAA33;
+      --text:     #E8E8F0;
+      --muted:    #6666AA;
+      --border:   #2A2A48;
+      --r:        12px;
+    }
+    *, *::before, *::after { box-sizing: border-box; margin: 0; padding: 0; }
+    html, body { height: 100%; overflow: hidden; }
+    body {
+      background: var(--bg);
+      color: var(--text);
+      font-family: system-ui, -apple-system, 'DM Sans', sans-serif;
+      font-size: 14px;
+      display: flex;
+      flex-direction: column;
+    }
+
+    /* ── Header ── */
+    header {
+      flex: none;
+      display: flex;
+      align-items: center;
+      gap: 10px;
+      padding: 14px 20px;
+      border-bottom: 1px solid var(--border);
+      background: var(--surface);
+    }
+    .logo {
+      width: 30px; height: 30px;
+      background: var(--primary);
+      border-radius: 8px;
+      display: grid; place-items: center;
+      flex: none;
+    }
+    header h1 { font-size: 16px; font-weight: 600; letter-spacing: -.3px; }
+    .badge {
+      margin-left: auto;
+      display: flex; align-items: center; gap: 6px;
+      background: var(--surface2);
+      border: 1px solid var(--border);
+      border-radius: 999px;
+      padding: 5px 12px;
+      font-size: 12px;
+      color: var(--muted);
+    }
+    .dot { width: 7px; height: 7px; border-radius: 50%; background: var(--muted); }
+    .dot.green  { background: #00CC88; }
+    .dot.amber  { background: var(--secondary); }
+    .dot.teal   { background: var(--primary); animation: pulse 2s infinite; }
+    @keyframes pulse {
+      0%,100% { opacity: 1; } 50% { opacity: .4; }
+    }
+
+    /* ── Layout ── */
+    main {
+      flex: 1;
+      display: grid;
+      grid-template-columns: 280px 1fr;
+      overflow: hidden;
+    }
+    aside {
+      background: var(--surface);
+      border-right: 1px solid var(--border);
+      padding: 16px;
+      overflow-y: auto;
+      display: flex;
+      flex-direction: column;
+      gap: 12px;
+    }
+    section {
+      padding: 16px;
+      display: flex;
+      flex-direction: column;
+      gap: 12px;
+      overflow: hidden;
+    }
+
+    /* ── Cards ── */
+    .card {
+      background: var(--surface2);
+      border: 1px solid var(--border);
+      border-radius: var(--r);
+      padding: 14px;
+    }
+    .card-label {
+      font-size: 11px;
+      text-transform: uppercase;
+      letter-spacing: .08em;
+      color: var(--muted);
+      font-weight: 600;
+      margin-bottom: 10px;
+    }
+
+    /* ── Buttons ── */
+    button {
+      border: none; border-radius: 8px;
+      padding: 9px 14px;
+      font-size: 13px; font-weight: 500;
+      cursor: pointer;
+      transition: filter .12s, opacity .12s;
+      width: 100%;
+    }
+    .btn-primary { background: var(--primary); color: #0A0A16; }
+    .btn-primary:hover { filter: brightness(1.12); }
+    .btn-primary:disabled { opacity: .35; cursor: not-allowed; }
+    .btn-danger  { background: #C0304A; color: #fff; margin-top: 7px; }
+    .btn-ghost   { background: transparent; border: 1px solid var(--border); color: var(--text); }
+    .btn-ghost:hover { border-color: var(--primary); color: var(--primary); }
+
+    /* ── QR ── */
+    .qr-wrap { display: flex; flex-direction: column; align-items: center; gap: 10px; }
+    .qr-wrap img { width: 160px; height: 160px; border-radius: 8px; border: 2px solid var(--border); display: block; }
+    .url-copy {
+      width: 100%;
+      background: var(--bg);
+      border: 1px solid var(--border);
+      border-radius: 7px;
+      padding: 6px 10px;
+      font-size: 11px;
+      color: var(--muted);
+      word-break: break-all;
+      text-align: center;
+      cursor: pointer;
+      transition: border-color .12s;
+    }
+    .url-copy:hover { border-color: var(--primary); color: var(--text); }
+
+    /* ── Form controls ── */
+    select {
+      width: 100%;
+      background: var(--bg);
+      border: 1px solid var(--border);
+      color: var(--text);
+      padding: 7px 10px;
+      border-radius: 8px;
+      font-size: 13px;
+      margin-bottom: 7px;
+      cursor: pointer;
+    }
+    select:last-child { margin-bottom: 0; }
+
+    /* ── Stats ── */
+    .stat { display: flex; justify-content: space-between; padding: 7px 0; border-bottom: 1px solid var(--border); }
+    .stat:last-child { border-bottom: none; }
+    .stat-key { color: var(--muted); }
+    .stat-val { color: var(--primary); font-weight: 600; font-variant-numeric: tabular-nums; }
+
+    /* ── Preview ── */
+    .preview-bar { display: flex; justify-content: space-between; align-items: center; flex: none; }
+    .preview-bar .btn-ghost { width: auto; padding: 5px 12px; font-size: 12px; }
+    #preview {
+      flex: 1;
+      border-radius: var(--r);
+      border: 1px solid var(--border);
+      background: var(--surface2);
+      display: block;
+      width: 100%;
+    }
+  </style>
+</head>
+<body>
+  <header>
+    <div class="logo">
+      <svg width="16" height="16" viewBox="0 0 16 16">
+        <circle cx="8" cy="8" r="6" fill="#0A0A16"/>
+        <circle cx="8" cy="8" r="3" fill="#0A0A16" stroke="#0A0A16"/>
+        <path d="M8 2 L14 8 L8 14 L2 8Z" fill="#0A0A16"/>
+      </svg>
+    </div>
+    <h1>TabletBridge</h1>
+    <div class="badge">
+      <span class="dot" id="dot"></span>
+      <span id="badge-label">Disconnected</span>
+    </div>
+  </header>
+
+  <main>
+    <aside>
+      <!-- Session -->
+      <div class="card">
+        <div class="card-label">Session</div>
+        <button class="btn-primary" id="start-btn" onclick="startSession()">Start Session</button>
+      </div>
+
+      <!-- QR Code -->
+      <div class="card" id="qr-card" style="display:none">
+        <div class="card-label">Scan to Connect</div>
+        <div class="qr-wrap">
+          <img id="qr-img" src="" alt="QR" />
+          <div class="url-copy" id="url-el" onclick="copyUrl()" title="Click to copy"></div>
+        </div>
+      </div>
+
+      <!-- Cursor Injection -->
+      <div class="card" id="agent-card" style="display:none">
+        <div class="card-label">Cursor Injection</div>
+        <div style="font-size:11px;color:var(--muted);margin-bottom:8px;line-height:1.5">Run this on your desktop to control the cursor:</div>
+        <div class="url-copy" id="agent-cmd" onclick="copyAgentCmd()" title="Click to copy" style="font-family:monospace;font-size:10px;text-align:left;padding:8px 10px;word-break:break-all"></div>
+      </div>
+
+      <!-- Monitor -->
+      <div class="card">
+        <div class="card-label">Monitor</div>
+        <select id="res-select" onchange="applyResolution()">
+          <option value="1920x1080">1920 × 1080  (Full HD)</option>
+          <option value="2560x1440">2560 × 1440  (QHD)</option>
+          <option value="3840x2160">3840 × 2160  (4K)</option>
+          <option value="1280x800">1280 × 800   (Laptop)</option>
+          <option value="2560x1600">2560 × 1600  (MBP 14")</option>
+        </select>
+        <select id="map-mode">
+          <option value="stretch">Stretch — fill screen</option>
+          <option value="fit">Fit — keep aspect ratio</option>
+        </select>
+      </div>
+
+      <!-- Stats -->
+      <div class="card">
+        <div class="card-label">Stats</div>
+        <div class="stat"><span class="stat-key">Latency</span><span class="stat-val" id="s-lat">—</span></div>
+        <div class="stat"><span class="stat-key">Events/s</span><span class="stat-val" id="s-eps">—</span></div>
+        <div class="stat"><span class="stat-key">Phone</span><span class="stat-val" id="s-phone">—</span></div>
+        <div class="stat"><span class="stat-key">Injector</span><span class="stat-val" id="s-inject">—</span></div>
+      </div>
+    </aside>
+
+    <section>
+      <div class="preview-bar">
+        <span style="font-size:11px;text-transform:uppercase;letter-spacing:.08em;color:var(--muted);font-weight:600">Live Preview</span>
+        <button class="btn-ghost" onclick="clearCanvas()">Clear</button>
+      </div>
+      <canvas id="preview"></canvas>
+    </section>
+  </main>
+
+  <script>
+  'use strict';
+
+  // ── state ────────────────────────────────────────────────────────────────
+  let sessionId = null, ws = null, pairUrl = '', wsBase = '';
+  let evtCount = 0, monW = 1920, monH = 1080;
+  let lastPt = null;
+
+  // ── canvas ────────────────────────────────────────────────────────────────
+  const canvas = document.getElementById('preview');
+  const ctx    = canvas.getContext('2d');
+
+  function resizeCanvas() {
+    const r = canvas.getBoundingClientRect();
+    canvas.width  = Math.floor(r.width);
+    canvas.height = Math.floor(r.height);
+  }
+  new ResizeObserver(resizeCanvas).observe(canvas);
+  resizeCanvas();
+
+  // ── session ───────────────────────────────────────────────────────────────
+  async function startSession() {
+    const btn = document.getElementById('start-btn');
+    btn.disabled = true;
+    btn.textContent = 'Starting...';
+    try {
+      const r = await fetch('/api/sessions', { method: 'POST' });
+      const d = await r.json();
+      sessionId = d.sessionId;
+      pairUrl   = d.pairUrl;
+      wsBase    = d.wsBase;
+
+      document.getElementById('qr-img').src         = d.qrCode;
+      document.getElementById('url-el').textContent  = d.pairUrl;
+      document.getElementById('qr-card').style.display = '';
+
+      const cmd = `python agent.py ${d.wsBase} ${d.sessionId}`;
+      document.getElementById('agent-cmd').textContent  = cmd;
+      document.getElementById('agent-card').style.display = '';
+      document.getElementById('s-inject').textContent    = 'Run agent.py';
+
+      btn.textContent = 'New Session';
+      btn.disabled    = false;
+
+      applyResolution();
+      connectWS();
+    } catch(e) {
+      btn.textContent = 'Start Session';
+      btn.disabled    = false;
+    }
+  }
+
+  async function applyResolution() {
+    const [w, h] = document.getElementById('res-select').value.split('x').map(Number);
+    monW = w; monH = h;
+    if (!sessionId) return;
+    await fetch(`/api/sessions/${sessionId}/monitor?width=${w}&height=${h}`, { method: 'POST' });
+  }
+
+  function copyUrl() {
+    navigator.clipboard.writeText(pairUrl).then(() => {
+      const el = document.getElementById('url-el');
+      const prev = el.textContent;
+      el.textContent = '✓ Copied!';
+      setTimeout(() => { el.textContent = prev; }, 1600);
+    });
+  }
+
+  function copyAgentCmd() {
+    const el = document.getElementById('agent-cmd');
+    navigator.clipboard.writeText(el.textContent).then(() => {
+      const prev = el.textContent;
+      el.textContent = '✓ Copied!';
+      setTimeout(() => { el.textContent = prev; }, 1600);
+    });
+  }
+
+  // ── websocket ─────────────────────────────────────────────────────────────
+  function connectWS() {
+    if (ws) { try { ws.close(); } catch(_) {} }
+    const proto = location.protocol === 'https:' ? 'wss:' : 'ws:';
+    ws = new WebSocket(`${proto}//${location.host}/ws?session=${sessionId}&role=desktop`);
+    ws.binaryType = 'arraybuffer';
+
+    ws.onopen  = () => setStatus('waiting');
+    ws.onclose = () => {
+      setStatus('disconnected');
+      if (sessionId) setTimeout(connectWS, 2000);
+    };
+    ws.onerror = () => setStatus('error');
+
+    ws.onmessage = (e) => {
+      if (typeof e.data === 'string') {
+        const m = JSON.parse(e.data);
+        if (m.type === 'phone-connected') {
+          setStatus('connected');
+          document.getElementById('s-phone').textContent = 'Connected';
+          lastPt = null;
+        } else if (m.type === 'phone-disconnected') {
+          setStatus('waiting');
+          document.getElementById('s-phone').textContent = 'Disconnected';
+          lastPt = null;
+        }
+        return;
+      }
+      evtCount++;
+      drawPreview(e.data);
+    };
+  }
+
+  // ── preview drawing ───────────────────────────────────────────────────────
+  function drawPreview(buf) {
+    const v = new DataView(buf);
+    if (v.byteLength < 21) return;
+    const type     = v.getUint8(0);
+    const nx       = v.getFloat32(1,  true);
+    const ny       = v.getFloat32(5,  true);
+    const pressure = v.getFloat32(9,  true);
+
+    const cw = canvas.width, ch = canvas.height;
+    const mode = document.getElementById('map-mode').value;
+    let px, py;
+
+    if (mode === 'stretch') {
+      px = nx * cw; py = ny * ch;
+    } else {
+      const aspect = monW / monH, ca = cw / ch;
+      let dw, dh, ox = 0, oy = 0;
+      if (ca > aspect) { dh = ch; dw = ch * aspect; ox = (cw - dw) / 2; }
+      else             { dw = cw; dh = cw / aspect; oy = (ch - dh) / 2; }
+      px = ox + nx * dw;
+      py = oy + ny * dh;
+    }
+
+    if (type === 1) {                                       // down
+      lastPt = { x: px, y: py };
+      ctx.beginPath();
+      ctx.arc(px, py, Math.max(1, pressure * 4), 0, Math.PI * 2);
+      ctx.fillStyle = '#00E5CC';
+      ctx.fill();
+    } else if (type === 2 && lastPt) {                      // move
+      ctx.beginPath();
+      ctx.moveTo(lastPt.x, lastPt.y);
+      ctx.lineTo(px, py);
+      ctx.strokeStyle = '#00E5CC';
+      ctx.lineWidth   = Math.max(1, pressure * 8);
+      ctx.lineCap = ctx.lineJoin = 'round';
+      ctx.stroke();
+      lastPt = { x: px, y: py };
+    } else if (type === 3) {                                // up
+      lastPt = null;
+    }
+  }
+
+  function clearCanvas() {
+    ctx.clearRect(0, 0, canvas.width, canvas.height);
+    lastPt = null;
+  }
+
+  // ── status display ────────────────────────────────────────────────────────
+  const DOT   = document.getElementById('dot');
+  const BADGE = document.getElementById('badge-label');
+
+  function setStatus(s) {
+    const map = {
+      disconnected: ['',      'Disconnected'],
+      error:        ['',      'Error'],
+      waiting:      ['amber', 'Waiting for phone…'],
+      connected:    ['teal',  'Phone connected'],
+    };
+    const [cls, label] = map[s] || ['', s];
+    DOT.className  = 'dot ' + cls;
+    BADGE.textContent = label;
+  }
+
+  // ── events/sec counter ────────────────────────────────────────────────────
+  setInterval(() => {
+    document.getElementById('s-eps').textContent = evtCount + '/s';
+    evtCount = 0;
+  }, 1000);
+  </script>
+</body>
+</html>

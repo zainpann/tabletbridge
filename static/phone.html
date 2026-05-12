@@ -1,0 +1,311 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no, viewport-fit=cover" />
+  <meta name="apple-mobile-web-app-capable" content="yes" />
+  <meta name="apple-mobile-web-app-status-bar-style" content="black-translucent" />
+  <meta name="mobile-web-app-capable" content="yes" />
+  <meta name="theme-color" content="#0A0A16" />
+  <link rel="manifest" href="/manifest.json" />
+  <title>TabletBridge</title>
+  <style>
+    :root {
+      --bg:      #0A0A16;
+      --surface: #141428;
+      --primary: #00E5CC;
+      --muted:   #4444AA;
+      --text:    #E8E8F0;
+    }
+    *, *::before, *::after { box-sizing: border-box; margin: 0; padding: 0; }
+
+    html, body {
+      width: 100%; height: 100%;
+      overflow: hidden;
+      background: var(--bg);
+      touch-action: none;
+      user-select: none;
+      -webkit-user-select: none;
+    }
+
+    /* ── toolbar ── */
+    #toolbar {
+      position: fixed;
+      top: 0; left: 0; right: 0;
+      height: 42px;
+      background: var(--surface);
+      border-bottom: 1px solid #2A2A48;
+      display: flex;
+      align-items: center;
+      padding: 0 14px;
+      gap: 10px;
+      z-index: 10;
+      padding-top: env(safe-area-inset-top);
+    }
+    .dot { width: 7px; height: 7px; border-radius: 50%; background: var(--muted); flex: none; }
+    .dot.green  { background: #00CC88; }
+    .dot.amber  { background: #FFAA33; }
+    .dot.teal   { background: var(--primary); animation: p 2s infinite; }
+    @keyframes p { 0%,100%{opacity:1} 50%{opacity:.3} }
+
+    #status-label { font-family: system-ui; font-size: 12px; color: #8888CC; flex: 1; }
+
+    #lat-badge {
+      font-family: system-ui;
+      font-size: 11px;
+      font-variant-numeric: tabular-nums;
+      color: var(--primary);
+      background: #0A1420;
+      border: 1px solid #1A2A38;
+      border-radius: 6px;
+      padding: 2px 7px;
+      min-width: 52px;
+      text-align: right;
+    }
+
+    /* ── drawing surface ── */
+    #surface {
+      position: fixed;
+      top: 42px; left: 0; right: 0; bottom: 0;
+      touch-action: none;
+    }
+
+    #canvas {
+      position: absolute;
+      top: 0; left: 0;
+      width: 100%; height: 100%;
+      display: block;
+    }
+
+    /* ── hint ── */
+    #hint {
+      position: absolute;
+      inset: 0;
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      pointer-events: none;
+      transition: opacity .4s;
+    }
+    #hint p {
+      font-family: system-ui;
+      font-size: 14px;
+      color: var(--muted);
+      text-align: center;
+    }
+  </style>
+</head>
+<body>
+  <div id="toolbar">
+    <span class="dot" id="dot"></span>
+    <span id="status-label">Connecting…</span>
+    <span id="lat-badge">— ms</span>
+  </div>
+
+  <div id="surface">
+    <canvas id="canvas"></canvas>
+    <div id="hint"><p>Touch to draw</p></div>
+  </div>
+
+  <script>
+  'use strict';
+
+  // ── canvas setup ──────────────────────────────────────────────────────────
+  const surface = document.getElementById('surface');
+  const canvas  = document.getElementById('canvas');
+  const ctx     = canvas.getContext('2d');
+
+  function resizeCanvas() {
+    const w = surface.offsetWidth, h = surface.offsetHeight;
+    canvas.width  = w;
+    canvas.height = h;
+  }
+  new ResizeObserver(resizeCanvas).observe(surface);
+  resizeCanvas();
+
+  // ── session from URL ──────────────────────────────────────────────────────
+  const params    = new URLSearchParams(location.search);
+  const sessionId = params.get('session');
+  // wsBase may be passed when using a tunnel (e.g. wss://xyz.ngrok.io)
+  // otherwise fall back to the current host
+  const wsBase = params.get('wsBase') || `${location.protocol === 'https:' ? 'wss:' : 'ws:'}//${location.host}`;
+
+  if (!sessionId) {
+    document.getElementById('status-label').textContent = 'No session ID in URL';
+    document.getElementById('dot').className = 'dot';
+  }
+
+  // ── WebSocket ─────────────────────────────────────────────────────────────
+  let ws = null;
+  let reconnectAttempt = 0;
+
+  function connect() {
+    setStatus('connecting');
+    ws = new WebSocket(`${wsBase}/ws?session=${sessionId}&role=phone`);
+    ws.binaryType = 'arraybuffer';
+
+    ws.onopen = () => {
+      reconnectAttempt = 0;
+      setStatus('connected');
+      startHeartbeat();
+    };
+    ws.onclose = () => {
+      setStatus('disconnected');
+      const delay = Math.min(500 * 2 ** reconnectAttempt, 8000);
+      reconnectAttempt++;
+      setTimeout(connect, delay);
+    };
+    ws.onerror = () => setStatus('error');
+
+    // Receive heartbeat echo → measure latency
+    ws.onmessage = (e) => {
+      const buf = e.data instanceof ArrayBuffer ? e.data : null;
+      if (!buf || buf.byteLength < 9) return;
+      const v = new DataView(buf);
+      if (v.getUint8(0) !== 0) return;
+      const sent = v.getFloat64(1, true);
+      const rtt  = Math.round(performance.now() - sent);
+      document.getElementById('lat-badge').textContent = rtt + ' ms';
+    };
+  }
+
+  // ── heartbeat ─────────────────────────────────────────────────────────────
+  let heartbeatTimer = null;
+
+  function startHeartbeat() {
+    clearInterval(heartbeatTimer);
+    heartbeatTimer = setInterval(() => {
+      if (ws?.readyState !== WebSocket.OPEN) return;
+      const buf = new ArrayBuffer(9);
+      const v   = new DataView(buf);
+      v.setUint8(0, 0);                        // type = heartbeat
+      v.setFloat64(1, performance.now(), true); // timestamp (little-endian)
+      ws.send(buf);
+    }, 500);
+  }
+
+  // ── binary encoding ───────────────────────────────────────────────────────
+  // Layout: [type:u8][x:f32][y:f32][pressure:f32][tiltX:f32][tiltY:f32] = 21 bytes
+  const TYPE = { pointerdown: 1, pointermove: 2, pointerup: 3, pointerhover: 4 };
+
+  function sendEvent(evtType, x, y, pressure, tiltX, tiltY) {
+    if (ws?.readyState !== WebSocket.OPEN) return;
+    const buf = new ArrayBuffer(21);
+    const v   = new DataView(buf);
+    v.setUint8(0,   evtType);
+    v.setFloat32(1,  x,        true);
+    v.setFloat32(5,  y,        true);
+    v.setFloat32(9,  pressure, true);
+    v.setFloat32(13, tiltX,    true);
+    v.setFloat32(17, tiltY,    true);
+    ws.send(buf);
+  }
+
+  // ── pointer capture ───────────────────────────────────────────────────────
+  let lastX = 0, lastY = 0, drawing = false;
+
+  // RAF-batched render queue
+  const renderQueue = [];
+  let rafId = null;
+
+  function flushRender() {
+    rafId = null;
+    for (const item of renderQueue) renderStroke(item);
+    renderQueue.length = 0;
+  }
+
+  function queueRender(item) {
+    renderQueue.push(item);
+    if (!rafId) rafId = requestAnimationFrame(flushRender);
+  }
+
+  function handlePointer(e) {
+    e.preventDefault();
+
+    // Capture so we still receive events when finger leaves element
+    if (e.type === 'pointerdown') {
+      surface.setPointerCapture(e.pointerId);
+      drawing = true;
+      document.getElementById('hint').style.opacity = '0';
+    }
+    if (e.type === 'pointerup' || e.type === 'pointercancel') {
+      drawing = false;
+    }
+
+    // Process all coalesced events for maximum resolution
+    const events = (typeof e.getCoalescedEvents === 'function')
+      ? e.getCoalescedEvents()
+      : [e];
+
+    for (const ce of events) {
+      const rect = surface.getBoundingClientRect();
+      const nx = Math.max(0, Math.min((ce.clientX - rect.left) / rect.width,  1));
+      const ny = Math.max(0, Math.min((ce.clientY - rect.top)  / rect.height, 1));
+      const pressure = ce.pressure ?? 0.5;
+      const tiltX    = ce.tiltX    ?? 0;
+      const tiltY    = ce.tiltY    ?? 0;
+
+      const t = TYPE[ce.type] ?? 2;
+      sendEvent(t, nx, ny, pressure, tiltX, tiltY);
+
+      // Queue local visual feedback
+      queueRender({ type: ce.type, x: ce.clientX - rect.left, y: ce.clientY - rect.top, pressure });
+    }
+  }
+
+  // ── local stroke rendering ────────────────────────────────────────────────
+  let localLast = null;
+
+  function renderStroke({ type, x, y, pressure }) {
+    if (type === 'pointerdown') {
+      localLast = { x, y };
+      ctx.beginPath();
+      ctx.arc(x, y, Math.max(1.5, pressure * 5), 0, Math.PI * 2);
+      ctx.fillStyle = 'rgba(0,229,204,.85)';
+      ctx.fill();
+    } else if (type === 'pointermove' && localLast) {
+      ctx.beginPath();
+      ctx.moveTo(localLast.x, localLast.y);
+      ctx.lineTo(x, y);
+      ctx.strokeStyle = 'rgba(0,229,204,.85)';
+      ctx.lineWidth   = Math.max(1.5, pressure * 10);
+      ctx.lineCap = ctx.lineJoin = 'round';
+      ctx.stroke();
+      localLast = { x, y };
+    } else if (type === 'pointerup' || type === 'pointercancel') {
+      localLast = null;
+    }
+  }
+
+  // ── event listeners ───────────────────────────────────────────────────────
+  const opts = { passive: false };
+  surface.addEventListener('pointerdown',   handlePointer, opts);
+  surface.addEventListener('pointermove',   handlePointer, opts);
+  surface.addEventListener('pointerup',     handlePointer, opts);
+  surface.addEventListener('pointercancel', handlePointer, opts);
+
+  // Block scroll / zoom / context menu
+  surface.addEventListener('touchstart',  e => e.preventDefault(), opts);
+  surface.addEventListener('contextmenu', e => e.preventDefault());
+
+  // ── status helpers ────────────────────────────────────────────────────────
+  const DOT   = document.getElementById('dot');
+  const LABEL = document.getElementById('status-label');
+
+  function setStatus(s) {
+    const map = {
+      connecting:   ['amber', 'Connecting…'],
+      connected:    ['teal',  'Connected — draw now'],
+      disconnected: ['',      'Reconnecting…'],
+      error:        ['',      'Connection error'],
+    };
+    const [cls, label] = map[s] || ['', s];
+    DOT.className    = 'dot ' + cls;
+    LABEL.textContent = label;
+  }
+
+  // ── start ─────────────────────────────────────────────────────────────────
+  if (sessionId) connect();
+  </script>
+</body>
+</html>
