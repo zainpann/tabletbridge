@@ -62,6 +62,18 @@
       min-width: 52px;
       text-align: right;
     }
+    #evt-badge {
+      font-family: system-ui;
+      font-size: 11px;
+      font-variant-numeric: tabular-nums;
+      color: #FFAA33;
+      background: #0A1420;
+      border: 1px solid #1A2A38;
+      border-radius: 6px;
+      padding: 2px 7px;
+      min-width: 40px;
+      text-align: right;
+    }
 
     /* ── drawing surface ── */
     #surface {
@@ -99,6 +111,7 @@
   <div id="toolbar">
     <span class="dot" id="dot"></span>
     <span id="status-label">Connecting…</span>
+    <span id="evt-badge">0 evt</span>
     <span id="lat-badge">— ms</span>
   </div>
 
@@ -188,6 +201,12 @@
   // Layout: [type:u8][x:f32][y:f32][pressure:f32][tiltX:f32][tiltY:f32] = 21 bytes
   const TYPE = { pointerdown: 1, pointermove: 2, pointerup: 3, pointerhover: 4 };
 
+  let sentCount = 0;
+  setInterval(() => {
+    document.getElementById('evt-badge').textContent = sentCount + ' evt';
+    sentCount = 0;
+  }, 1000);
+
   function sendEvent(evtType, x, y, pressure, tiltX, tiltY) {
     if (ws?.readyState !== WebSocket.OPEN) return;
     const buf = new ArrayBuffer(21);
@@ -199,6 +218,7 @@
     v.setFloat32(13, tiltX,    true);
     v.setFloat32(17, tiltY,    true);
     ws.send(buf);
+    sentCount++;
   }
 
   // ── pointer capture ───────────────────────────────────────────────────────
