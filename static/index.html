@@ -69,6 +69,7 @@
       flex: 1;
       display: grid;
       grid-template-columns: 280px 1fr;
+      grid-template-rows: 1fr;
       overflow: hidden;
     }
     aside {
@@ -259,14 +260,12 @@
   const ctx    = canvas.getContext('2d');
 
   function resizeCanvas() {
-    const r = canvas.getBoundingClientRect();
-    if (r.width > 0 && r.height > 0) {
-      canvas.width  = Math.floor(r.width);
-      canvas.height = Math.floor(r.height);
-    }
+    const w = canvas.offsetWidth  || canvas.clientWidth;
+    const h = canvas.offsetHeight || canvas.clientHeight;
+    if (w > 0) canvas.width  = w;
+    if (h > 0) canvas.height = h;
   }
   new ResizeObserver(resizeCanvas).observe(canvas);
-  // Defer so layout is complete before we read dimensions
   requestAnimationFrame(resizeCanvas);
 
   // ── session ───────────────────────────────────────────────────────────────
